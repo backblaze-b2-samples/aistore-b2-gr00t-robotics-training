@@ -1,0 +1,78 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 Backblaze, Inc.
+# SPDX-FileCopyrightText: Copyright (c) 2017 NVIDIA Corporation
+# SPDX-License-Identifier: Apache-2.0 AND MIT
+#
+# Single-host AIStore cluster (1 proxy + 1 target) fronting a Backblaze B2 bucket.
+#
+# Adapted from AIStore's deploy/prod/docker/compose/docker-compose.yml (MIT; see NOTICE) with
+# three changes: the image is pinned by digest, every port binds to 127.0.0.1 only (AIS runs
+# without AuthN here), and B2 credentials are mapped onto the AWS_* variables the AIS S3
+# backend reads. Credentials come from the caller's environment (.env via the Makefile) and
+# are never baked into an image.
+#
+# Ports are configurable so several clusters (e.g. `make test-integration`) can coexist. The
+# proxy redirects native-API clients to the target's public URL, so each node's host port must
+# equal its container port.
+
+name: aistore-b2-gr00t
+
+services:
+  proxy:
+    # Image pinned by digest; bump both services and the `aistore` SDK pin in pyproject.toml
+    # together. Inlined (not a YAML anchor) so Dependabot can update it.
+    image: ${AIS_IMAGE:-aistorage/cluster-minimal:v5.1@sha256:d442df5e84831c0dbb6910e00a2dfa78a6bf8265e17805659f6b5e1aa5218e6f}
+    command: ["proxy", "${AIS_PORT:-51080}"]
+    hostname: proxy
+    ports:
+      - "127.0.0.1:${AIS_PORT:-51080}:${AIS_PORT:-51080}"
+    networks: [ais]
+    environment:
+      - AIS_PRIMARY_URL=http://proxy:${AIS_PORT:-51080}
+      - AIS_BACKEND_PROVIDERS=aws
+      - HOSTNAME_LIST=127.0.0.1
+      - HOSTNAME_LIST_INTRA_CONTROL=proxy
+      - HOSTNAME_LIST_INTRA_DATA=proxy
+    volumes:
+      # Persist proxy identity + cluster map so `down`/`up` rejoins the existing target.
+      - proxy_conf:/etc/aisnode/proxy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:${AIS_PORT:-51080}/v1/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 15s
+
+  target:
+    image: ${AIS_IMAGE:-aistorage/cluster-minimal:v5.1@sha256:d442df5e84831c0dbb6910e00a2dfa78a6bf8265e17805659f6b5e1aa5218e6f}
+    command: ["target", "${AIS_TARGET_PORT:-51081}"]
+    hostname: target
+    depends_on:
+      proxy:
+        condition: service_healthy
+    # Native-API GETs are redirected to the target, so it must be reachable from the host too.
+    ports:
+      - "127.0.0.1:${AIS_TARGET_PORT:-51081}:${AIS_TARGET_PORT:-51081}"
+    networks: [ais]
+    environment:
+      - AIS_PRIMARY_URL=http://proxy:${AIS_PORT:-51080}
+      - AIS_BACKEND_PROVIDERS=aws
+      - AIS_FS_LABEL=container-local
+      - HOSTNAME_LIST=127.0.0.1
+      - HOSTNAME_LIST_INTRA_CONTROL=target
+      - HOSTNAME_LIST_INTRA_DATA=target
+      # Only the target talks to B2, so only it gets the key (visible to anyone who can run
+      # `docker inspect`). The per-bucket extra.aws.cloud_region set by attach_b2_bucket.sh
+      # overrides AWS_REGION; AIS falls back to us-east-1 when both are empty.
+      - AWS_ACCESS_KEY_ID=${B2_KEY_ID:-}
+      - AWS_SECRET_ACCESS_KEY=${B2_APP_KEY:-}
+      - AWS_REGION=${B2_REGION:-}
+    volumes:
+      # Set AIS_CACHE_DIR to a host path (e.g. local NVMe) to keep the cache off the Docker root disk.
+      - ${AIS_CACHE_DIR:-target_disk0}:/ais/disk0
+
+networks:
+  ais:
+
+volumes:
+  proxy_conf:
+  target_disk0:

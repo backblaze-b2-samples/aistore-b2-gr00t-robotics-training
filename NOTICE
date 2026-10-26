@@ -1,0 +1,63 @@
+aistore-b2-gr00t-robotics-training
+Copyright (c) 2026 Backblaze, Inc.
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+This project is not affiliated with, sponsored by, or endorsed by NVIDIA Corporation.
+NVIDIA, Isaac, GR00T, Cosmos, and AIStore are trademarks of their respective owners
+and are used here only to identify the software, models, and data this sample works with.
+
+-------------------------------------------------------------------------------
+Third-party software, models, and data
+-------------------------------------------------------------------------------
+
+Nothing below is vendored or redistributed by this repository unless stated.
+
+1. AIStore (https://github.com/NVIDIA/aistore) - MIT License
+   Used as a container image (aistorage/cluster-minimal) and Python SDK (aistore).
+   deploy/docker-compose.yml is adapted from AIStore's
+   deploy/prod/docker/compose/docker-compose.yml, which carries this notice:
+
+     MIT License
+
+     Copyright (c) 2017 NVIDIA Corporation
+
+     Permission is hereby granted, free of charge, to any person obtaining a copy
+     of this software and associated documentation files (the "Software"), to deal
+     in the Software without restriction, including without limitation the rights
+     to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+     copies of the Software, and to permit persons to whom the Software is
+     furnished to do so, subject to the following conditions:
+
+     The above copyright notice and this permission notice shall be included in all
+     copies or substantial portions of the Software.
+
+     THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+     IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+     FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+     AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+     LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+     OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+     SOFTWARE.
+
+2. NVIDIA Isaac GR00T (https://github.com/NVIDIA/Isaac-GR00T) - Apache License 2.0
+   Cloned at tag n1.7-release by `make setup` into third_party/ (git-ignored); not
+   redistributed. Its demo_data/cube_to_bowl_5 is uploaded only to your own bucket.
+
+3. GR00T N1.7 model weights (https://huggingface.co/nvidia/GR00T-N1.7-3B)
+   Downloaded by GR00T on the training node; never redistributed here. The model
+   card states the NVIDIA Open Model License Agreement; review the license files
+   on the model page before use.
+
+4. Cosmos-Reason2-2B backbone (https://huggingface.co/nvidia/Cosmos-Reason2-2B)
+   Gated model loaded by GR00T; NVIDIA Open Model License. Never redistributed here.
+
+5. PhysicalAI-Robotics-GR00T-X-Embodiment-Sim
+   (https://huggingface.co/datasets/nvidia/PhysicalAI-Robotics-GR00T-X-Embodiment-Sim)
+   Creative Commons Attribution 4.0 International (CC BY 4.0).
+   Attribution: NVIDIA Corporation. Optionally seeded (one task subset, pinned to
+   revision ea7ac0b68f87da62f1e726771bba0fe74300802f) into your own bucket; not
+   redistributed here and not modified by this project.
+
+6. Python dependencies (aistore, boto3, huggingface_hub, pytest, ruff, and transitive
+   packages) are installed from PyPI under their own licenses; see uv.lock.

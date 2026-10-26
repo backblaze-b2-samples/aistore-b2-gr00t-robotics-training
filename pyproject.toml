@@ -1,0 +1,50 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 Backblaze, Inc.
+# SPDX-License-Identifier: Apache-2.0
+
+[project]
+name = "aistore-b2-gr00t"
+version = "0.1.0"
+description = "Fine-tune NVIDIA Isaac GR00T on robot episodes stored in Backblaze B2, staged through AIStore."
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
+authors = [{ name = "Backblaze, Inc." }]
+requires-python = ">=3.10"
+dependencies = [
+    # Pinned to match the aistorage/cluster-minimal:v5.1 image in deploy/docker-compose.yml.
+    "aistore==2.0.0",
+    "boto3>=1.40,<2",
+    "huggingface-hub>=1.0,<3",
+]
+
+[dependency-groups]
+dev = [
+    "pytest==9.1.1",
+    "pytest-timeout==2.4.0",
+    "ruff==0.16.10",
+]
+
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/aistore_b2_gr00t"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "SIM", "RUF"]
+ignore = ["S603", "S607"]  # finetune.py launches the trainer with fixed argv lists
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S105", "S106", "S108"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-m 'not integration' --strict-markers"
+# Signal-forwarding tests spawn process groups; a regression must fail, not hang CI.
+timeout = 60
+markers = ["integration: needs real B2 (B2_IT=1 in .env) and the disposable AIS cluster from `make test-integration`"]

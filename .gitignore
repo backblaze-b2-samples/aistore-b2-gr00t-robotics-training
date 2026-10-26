@@ -1,0 +1,23 @@
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Python / uv
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+
+# Downloads and run outputs
+.cache/
+.bin/
+third_party/
+data/
+outputs/
+results/
+
+.DS_Store
