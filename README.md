@@ -12,10 +12,29 @@ Steps marked **any machine** run on a CPU-only Linux or macOS host. Steps marked
 - [ ] Docker with Compose v2 and `curl`
 - [ ] [uv](https://docs.astral.sh/uv/), git, and [git-lfs](https://git-lfs.com/)
 - [ ] Python 3.11+ for the sample application (uv can install it); `make setup-gpu` installs the upstream trainer separately with Python 3.10
-- [ ] **GPU host:** Linux x86_64 (Ubuntu 22.04+), an NVIDIA driver supporting CUDA 12.6+, FFmpeg, and one GPU with 48 GB VRAM recommended (L40S, RTX 6000 Ada, H100). GR00T documents 40 GB+ for default tuning (projector + action head); `--tune-llm` / `--tune-visual` need 80 GB+.
+- [ ] **GPU host:** Linux x86_64 (Ubuntu 22.04 or 24.04), the CUDA 12.8 toolkit, and an [NVIDIA driver compatible with CUDA 12.8](https://docs.nvidia.com/cuda/archive/12.8.0/cuda-toolkit-release-notes/index.html). The pinned trainer installs PyTorch 2.7.1 with CUDA 12.8 wheels.
+- [ ] **GPU host:** FFmpeg 4–7 shared libraries for the pinned [TorchCodec 0.4.0](https://github.com/pytorch/torchcodec/blob/v0.4.0/README.md#installing-torchcodec). A standalone FFmpeg executable or an FFmpeg 8 installation alone does not provide these libraries.
+- [ ] **GPU host:** one GPU with 48 GB VRAM recommended (A40, L40S, RTX 6000 Ada, H100). GR00T documents 40 GB+ for default tuning (projector + action head); `--tune-llm` / `--tune-visual` need 80 GB+.
 - [ ] **GPU host:** access to the gated [`nvidia/Cosmos-Reason2-2B`](https://huggingface.co/nvidia/Cosmos-Reason2-2B) backbone, then `hf auth login`
 
 ## Quickstart
+
+On the GPU host, set `CUDA_HOME` to the installed CUDA 12.8 toolkit before setup and training. This avoids using a different toolkit when multiple versions are installed:
+
+```bash
+export CUDA_HOME=/usr/local/cuda-12.8
+export PATH="$CUDA_HOME/bin:$PATH"
+nvcc --version                    # should report release 12.8
+```
+
+On Ubuntu 22.04 or 24.04, install the distribution's FFmpeg package to supply compatible shared libraries:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y ffmpeg
+```
+
+The system libraries can coexist with a standalone FFmpeg 8 executable used by another application.
 
 ```bash
 cp .env.example .env              # any machine: fill in B2 settings and the bucket-scoped key
@@ -24,7 +43,11 @@ make up                           # any machine: start AIS on 127.0.0.1:51080, a
 make seed                         # any machine: upload demo_data/cube_to_bowl_5 to B2
 make run ARGS="--dry-run"
 make setup-gpu                    # GPU host: Isaac-GR00T's own environment
-make run ARGS="--max-steps 200"   # GPU host: stage via AIS, fine-tune, sync checkpoints to B2
+RUN_NAME="demo-$(date -u +%Y%m%dT%H%M%SZ)"
+make run ARGS="--run-name $RUN_NAME --max-steps 20 -- --global-batch-size 1 --save-steps 10 --save-total-limit 2"
+make verify PREFIX="checkpoints/$RUN_NAME/checkpoint-10" ARGS="--direct"
+make verify PREFIX="checkpoints/$RUN_NAME/checkpoint-20" ARGS="--direct"
+make verify PREFIX="checkpoints/$RUN_NAME" ARGS="--direct"
 ```
 
 | Step | Expected output |
@@ -34,9 +57,12 @@ make run ARGS="--max-steps 200"   # GPU host: stage via AIS, fine-tune, sync che
 | `make seed` | `s3://<bucket>/datasets/cube_to_bowl_5/: N uploaded, 0 unchanged` (re-runs report `0 uploaded, N unchanged`) |
 | `make run ARGS="--dry-run"` | `stage:`, `train:`, and `sync:` lines with the exact GR00T command |
 | `make setup-gpu` | uv finishes installing into `third_party/Isaac-GR00T/.venv` |
-| `make run ARGS="--max-steps 200"` | `staged N objects ...`, `[sync] checkpoint-N: ...`, and `[stats] B2 GETs via AIS during training: 0 (0.0 MB)` |
+| 20-step training command above (GPU host) | `staged N objects ...`, `[sync] checkpoint-10: ...`, `[sync] checkpoint-20: ...`, and `[stats] B2 GETs via AIS during training: 0 (0.0 MB)` |
+| `make verify ... ARGS="--direct"` | File and byte progress, then `verified N files in s3://<bucket>/<prefix>` |
 
-`make help` lists every target. The demo is GR00T's own `demo_data/cube_to_bowl_5`: 5 SO-101 episodes, two cameras, LeRobot `v2.1`, run with `NEW_EMBODIMENT` and `examples/SO100/so100_config.py`. A 200-step run exercises the pipeline; GR00T's guide uses 2000+ steps for a useful policy.
+`make help` lists every target. The demo is GR00T's own `demo_data/cube_to_bowl_5`: 5 SO-101 episodes, two cameras, LeRobot `v2.1`, run with `NEW_EMBODIMENT` and `examples/SO100/so100_config.py`. The 20-step example validates staging, GPU training, checkpoint publication, and direct B2 integrity checks; it does not establish robot policy quality. GR00T's guide uses 2000+ steps for a useful policy. The batch size is explicit because upstream defaults to 64; checkpoint saves are explicit because its default interval is 1000 steps.
+
+Checkpoints include model weights and optimizer state, so even this short run can publish tens of gigabytes. Allow space locally and in B2. Direct verification downloads every listed file again and may take much longer than training.
 
 `make setup-gpu` also downloads approximately 406 MB of Git LFS wheels referenced by the upstream lockfile. uv reads their metadata when validating the lockfile, including ARM wheels on an x86 host; only packages matching the host platform are installed.
 
@@ -46,7 +72,7 @@ Run the quickstart on a Linux GPU workstation or cloud VM with Docker and the pr
 
 ```bash
 echo 'AIS_CACHE_DIR=/mnt/nvme/ais' >> .env      # AIS cache, applied on the next `make up`
-make run ARGS="--stage-dir /mnt/nvme/stage --max-steps 200"
+make run ARGS="--stage-dir /mnt/nvme/stage --max-steps 20 -- --global-batch-size 1 --save-steps 10 --save-total-limit 2"
 ```
 
 On Kubernetes platforms such as CoreWeave, or pods without a Docker daemon, deploy AIS with [ais-k8s](https://github.com/NVIDIA/ais-k8s) with the B2 key as its AWS backend credentials. Then set `AIS_ENDPOINT` in `.env` to its proxy and run `make attach` instead of `make up`. Keep that cluster private to the job; see [docs/operations.md](docs/operations.md).
@@ -117,7 +143,7 @@ make verify PREFIX=checkpoints/<run>/checkpoint-200 ARGS="--direct"   # B2's dur
 ```
 
 Verification streams every listed object, checks its size and SHA-256, then rereads the record to detect a concurrent republish.
-It prints its file count only after completion; large publications can take several minutes without intermediate output.
+It reports files verified and bytes read to stderr at startup, about every five seconds as data arrives, and on completion. The final `verified N files` line on stdout appears only after all checks pass. Progress updates pause while waiting on network reads.
 
 ### Scope
 
@@ -221,7 +247,8 @@ Integration tests run against real B2 through a disposable AIS cluster under its
 | `Git LFS pointer files` from `make seed` | Install git-lfs, then `make setup`. |
 | `Failed to generate package metadata` / `unable to locate the end of central directory record` for a deployment wheel | The wheel is still a Git LFS pointer. Re-run `make setup-gpu` to fetch the wheels before uv validates the lockfile. |
 | `install git-lfs first` from `make setup` | Install [git-lfs](https://git-lfs.com/) and re-run. |
-| `CUDA_HOME is unset` / flash-attn errors | GR00T environment issue; see the [Isaac-GR00T installation guide](https://github.com/NVIDIA/Isaac-GR00T/tree/n1.7-release#installation). |
+| `CUDA_HOME is unset` / toolkit version mismatch | Set `CUDA_HOME=/usr/local/cuda-12.8` and prepend `$CUDA_HOME/bin` to `PATH`; confirm `nvcc --version` reports 12.8 before setup and training. |
+| `Could not load libtorchcodec` / missing `libavcodec.so` | Install FFmpeg 4–7 shared libraries (`sudo apt-get install ffmpeg` on Ubuntu 22.04/24.04). FFmpeg 8 or a static executable alone is insufficient for TorchCodec 0.4.0. |
 | 401/403 from Hugging Face during training | Request access to `nvidia/Cosmos-Reason2-2B` and run `hf auth login` on the training node. |
 
 ## Pins

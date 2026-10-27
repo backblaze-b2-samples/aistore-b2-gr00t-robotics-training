@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
@@ -66,9 +66,24 @@ def manifest_sha256(manifest: dict[str, Any]) -> str:
     return hashlib.sha256(_manifest_bytes(manifest)).hexdigest()
 
 
-def verify_remote(s3: Any, bucket: str, prefix: str) -> int:
-    """Stream every manifest-listed object and verify its bytes, then recheck the manifest."""
+def verify_remote(
+    s3: Any,
+    bucket: str,
+    prefix: str,
+    *,
+    progress: Callable[[int, int, int, int], None] | None = None,
+) -> int:
+    """Verify every object, then recheck the manifest.
+
+    Optional progress receives (files_verified, total_files, bytes_read, total_bytes).
+    Bytes include the current file; files count only after size and SHA-256 match.
+    """
     manifest = read_manifest(s3, bucket, prefix)
+    total_files = len(manifest["files"])
+    total_bytes = sum(info["size"] for info in manifest["files"].values())
+    files_verified = bytes_read = 0
+    if progress is not None:
+        progress(files_verified, total_files, bytes_read, total_bytes)
     prefix = prefix.strip("/")
     for rel, expected in manifest["files"].items():
         key = f"{prefix}/{rel}" if prefix else rel
@@ -78,13 +93,21 @@ def verify_remote(s3: Any, bucket: str, prefix: str) -> int:
             for block in iter(lambda body=body: body.read(1024 * 1024), b""):
                 size += len(block)
                 digest.update(block)
+                bytes_read += len(block)
+                if progress is not None:
+                    progress(files_verified, total_files, bytes_read, total_bytes)
         finally:
             body.close()
         if size != expected["size"] or digest.hexdigest() != expected["sha256"]:
             raise OSError(f"artifact integrity check failed: {key}")
+        files_verified += 1
+        if progress is not None and files_verified < total_files:
+            progress(files_verified, total_files, bytes_read, total_bytes)
     if read_manifest(s3, bucket, prefix) != manifest:
         raise OSError("artifact publication changed during verification")
-    return len(manifest["files"])
+    if progress is not None:
+        progress(files_verified, total_files, bytes_read, total_bytes)
+    return total_files
 
 
 def reject_symlinks(path: Path) -> None:
