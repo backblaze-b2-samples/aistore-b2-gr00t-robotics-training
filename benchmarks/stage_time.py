@@ -21,7 +21,7 @@ import sys
 import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from importlib.metadata import version
 from pathlib import Path
 from urllib.parse import urlparse
@@ -220,7 +220,7 @@ def main(argv: list[str] | None = None) -> int:
 
     report = {
         "prefix": args.prefix,
-        "timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "timestamp": datetime.now(UTC).isoformat(timespec="seconds"),
         "environment": {
             "platform": platform.platform(),
             "cpus": os.cpu_count(),
@@ -234,7 +234,7 @@ def main(argv: list[str] | None = None) -> int:
         "results": results,
     }
     args.out_dir.mkdir(parents=True, exist_ok=True)
-    stem = args.out_dir / f"stage_time-{datetime.now(timezone.utc):%Y%m%dT%H%M%SZ}"
+    stem = args.out_dir / f"stage_time-{datetime.now(UTC):%Y%m%dT%H%M%SZ}"
     stem.with_suffix(".json").write_text(json.dumps(report, indent=2))
     md = to_markdown(report)
     stem.with_suffix(".md").write_text(md)

@@ -9,7 +9,7 @@ readme = "README.md"
 license = "Apache-2.0"
 license-files = ["LICENSE", "NOTICE"]
 authors = [{ name = "Backblaze, Inc." }]
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
     # Pinned to match the aistorage/cluster-minimal:v5.1 image in deploy/docker-compose.yml.
     "aistore==2.0.0",
@@ -28,12 +28,15 @@ dev = [
 requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
+[tool.uv]
+constraint-dependencies = ["filelock>=4.2.1", "certifi>=2026.10.19"]
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/aistore_b2_gr00t"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "S", "SIM", "RUF"]

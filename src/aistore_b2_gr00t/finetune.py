@@ -22,7 +22,7 @@ import threading
 import time
 from collections.abc import Mapping
 from contextlib import suppress
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
@@ -51,7 +51,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     ap.add_argument("--dataset-prefix", default="datasets/cube_to_bowl_5")
     ap.add_argument(
         "--run-name",
-        default=datetime.now(timezone.utc).strftime("gr00t-%Y%m%d-%H%M%S-") + uuid4().hex[:12],
+        default=datetime.now(UTC).strftime("gr00t-%Y%m%d-%H%M%S-") + uuid4().hex[:12],
     )
     ap.add_argument(
         "--checkpoint-prefix",

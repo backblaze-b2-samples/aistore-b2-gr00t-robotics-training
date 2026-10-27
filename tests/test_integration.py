@@ -15,7 +15,7 @@ import json
 import os
 import secrets
 import subprocess
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -40,7 +40,7 @@ from aistore_b2_gr00t.storage import (
 )
 
 pytestmark = pytest.mark.integration
-RUN = f"it/{datetime.now(timezone.utc):%Y%m%dT%H%M%SZ}-{secrets.token_hex(4)}/"
+RUN = f"it/{datetime.now(UTC):%Y%m%dT%H%M%SZ}-{secrets.token_hex(4)}/"
 # Trailing slash: `cube_to_bowl_5` must not match a sibling such as `cube_to_bowl_50`.
 PREFIX = f"{RUN}datasets/cube_to_bowl_5/"
 CKPT_PREFIX = f"{RUN}checkpoints"
