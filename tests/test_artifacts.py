@@ -169,6 +169,49 @@ def test_consumer_detects_corruption_and_rejects_pending(tmp_path):
         verify_remote(store, "b", "run")
 
 
+def test_verification_progress_streams_bytes_and_counts_verified_files(tmp_path):
+    payload = b"x" * (1024 * 1024 + 3)
+    (tmp_path / "a.bin").write_bytes(payload)
+    (tmp_path / "z-empty.bin").touch()
+    store = Store()
+    upload_tree(store, tmp_path, "b", "run", publish=True)
+    updates = []
+    assert verify_remote(store, "b", "run", progress=lambda *v: updates.append(v)) == 2
+    assert updates[0] == (0, 2, 0, len(payload))
+    assert (0, 2, 1024 * 1024, len(payload)) in updates
+    assert (1, 2, len(payload), len(payload)) in updates
+    assert updates[-1] == (2, 2, len(payload), len(payload))
+
+
+def test_corrupt_file_is_not_counted_as_verified_in_progress(tmp_path):
+    (tmp_path / "model.bin").write_bytes(b"new")
+    store = Store()
+    upload_tree(store, tmp_path, "b", "run", publish=True)
+    store.data["run/model.bin"] = b"old"
+    updates = []
+    with pytest.raises(OSError, match="integrity check"):
+        verify_remote(store, "b", "run", progress=lambda *v: updates.append(v))
+    assert updates[-1] == (0, 1, 3, 3)
+
+
+def test_changed_publication_does_not_report_completion(tmp_path):
+    (tmp_path / "model.bin").write_bytes(b"new")
+    store = Store()
+    upload_tree(store, tmp_path, "b", "run", publish=True)
+    updates = []
+
+    def progress(files, total_files, received, total_bytes):
+        updates.append((files, total_files, received, total_bytes))
+        if received:
+            record = json.loads(store.data["run/" + MANIFEST])
+            record["provenance"] = {"revision": "changed"}
+            store.data["run/" + MANIFEST] = json.dumps(record).encode()
+
+    with pytest.raises(OSError, match="publication changed"):
+        verify_remote(store, "b", "run", progress=progress)
+    assert updates[-1] == (0, 1, 3, 3)
+
+
 def test_empty_artifact_is_not_published(tmp_path):
     store = Store()
     with pytest.raises(ValueError, match="empty artifact"):
