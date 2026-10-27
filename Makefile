@@ -21,7 +21,7 @@ DEMO_DATA_DIR  ?= $(CURDIR)/$(DEMO_DATA)
 
 REQUIRE_LFS := git lfs version >/dev/null 2>&1 || { echo "install git-lfs first (https://git-lfs.com)" >&2; exit 1; }
 
-.PHONY: help setup setup-gpu demo-data up attach down seed run bench verify test test-integration check lint fmt
+.PHONY: help setup setup-gpu demo-data up attach down seed run bench verify audit test test-integration check lint fmt
 
 help: ## List targets
 	@awk 'BEGIN { FS = ":.*## " } /^[a-zA-Z_-]+:.*## / { printf "  %-17s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -31,9 +31,14 @@ setup: demo-data ## Dev env (any OS): package, linters, pinned Isaac-GR00T check
 
 setup-gpu: demo-data ## GPU host (Linux x86_64, CUDA 12): Isaac-GR00T's own environment
 	@test "$$(uname -s)-$$(uname -m)" = Linux-x86_64 || { echo "GR00T training requires Linux x86_64 + CUDA 12" >&2; exit 1; }
+	# uv validates local wheel metadata for every platform in the upstream lockfile.
+	git -C $(GR00T_DIR) lfs pull --include "scripts/deployment/dgpu/wheels/*.whl" --exclude ""
 	cd $(GR00T_DIR) && uv sync --locked --python 3.10
 
-# Pulls only the demo dataset (~30 MB), not the multi-GB deployment wheels also tracked in LFS.
+audit: ## Audit the sample application's locked dependencies (network required)
+	uv export --locked --all-groups --no-emit-project --format requirements-txt | uvx --from pip-audit==2.10.1 pip-audit --disable-pip --require-hashes -r /dev/stdin
+
+# CPU setup pulls only the demo dataset; setup-gpu also fetches wheels used by the lockfile.
 demo-data: $(GR00T_DIR) ## Fetch GR00T demo_data/cube_to_bowl_5 (git-lfs)
 	@$(REQUIRE_LFS)
 	@test "$$(git -C $(GR00T_DIR) rev-parse HEAD)" = "$(GR00T_COMMIT)" || { echo "GR00T checkout differs from pinned commit $(GR00T_COMMIT)" >&2; exit 1; }

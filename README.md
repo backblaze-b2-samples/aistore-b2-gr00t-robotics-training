@@ -11,6 +11,7 @@ Steps marked **any machine** run on a CPU-only Linux or macOS host. Steps marked
 - [ ] A B2 bucket and an application key restricted to it with `listBuckets`, `listFiles`, `readFiles`, `writeFiles`
 - [ ] Docker with Compose v2 and `curl`
 - [ ] [uv](https://docs.astral.sh/uv/), git, and [git-lfs](https://git-lfs.com/)
+- [ ] Python 3.11+ for the sample application (uv can install it); `make setup-gpu` installs the upstream trainer separately with Python 3.10
 - [ ] **GPU host:** Linux x86_64 (Ubuntu 22.04+), an NVIDIA driver supporting CUDA 12.6+, FFmpeg, and one GPU with 48 GB VRAM recommended (L40S, RTX 6000 Ada, H100). GR00T documents 40 GB+ for default tuning (projector + action head); `--tune-llm` / `--tune-visual` need 80 GB+.
 - [ ] **GPU host:** access to the gated [`nvidia/Cosmos-Reason2-2B`](https://huggingface.co/nvidia/Cosmos-Reason2-2B) backbone, then `hf auth login`
 
@@ -36,6 +37,8 @@ make run ARGS="--max-steps 200"   # GPU host: stage via AIS, fine-tune, sync che
 | `make run ARGS="--max-steps 200"` | `staged N objects ...`, `[sync] checkpoint-N: ...`, and `[stats] B2 GETs via AIS during training: 0 (0.0 MB)` |
 
 `make help` lists every target. The demo is GR00T's own `demo_data/cube_to_bowl_5`: 5 SO-101 episodes, two cameras, LeRobot `v2.1`, run with `NEW_EMBODIMENT` and `examples/SO100/so100_config.py`. A 200-step run exercises the pipeline; GR00T's guide uses 2000+ steps for a useful policy.
+
+`make setup-gpu` also downloads approximately 406 MB of Git LFS wheels referenced by the upstream lockfile. uv reads their metadata when validating the lockfile, including ARM wheels on an x86 host; only packages matching the host platform are installed.
 
 ## Running on a cloud GPU
 
@@ -187,7 +190,8 @@ Without a cache, B2 GETs scale with objects x nodes x jobs; with AIS, with objec
 ## Tests
 
 ```bash
-make check              # lint + offline unit tests (what CI runs, Python 3.10 and 3.12)
+make check              # lint + offline unit tests (what CI runs, Python 3.11 and 3.12)
+make audit              # audit the sample application's lockfile (network required)
 make test-integration   # real B2, opt-in
 ```
 
@@ -199,6 +203,7 @@ Integration tests run against real B2 through a disposable AIS cluster under its
 
 ## Security
 
+- CI audits the sample application's `uv.lock` against published advisories. The separately cloned Isaac-GR00T trainer has its own upstream lockfile and is outside this audit.
 - Use a bucket-scoped key with only `listBuckets`, `listFiles`, `readFiles`, `writeFiles`. AIS writes through, so an AIS delete of an `s3://` object also deletes it in B2; leave out `deleteFiles`.
 - Only the AIS target container and the direct-to-B2 tools (seed, benchmark, `verify --direct`) receive the B2 key. `make run` removes the B2 variables from the trainer's environment; training-only hosts need no backend credentials.
 - AIS runs without authentication and accepts placeholder S3 credentials, so keep the stack on localhost. Remote deployments need AuthN and TLS; see [docs/operations.md](docs/operations.md).
@@ -214,6 +219,7 @@ Integration tests run against real B2 through a disposable AIS cluster under its
 | `split-brain` in proxy logs after recreating containers | Proxy state lives in the `proxy_conf` volume. Reset with `docker compose -f deploy/docker-compose.yml down -v`; this drops the cache, not B2 data. |
 | `GetBatch returned k/n objects` | The objects were evicted after prefetch. Re-run, or use `--stage-method get`. |
 | `Git LFS pointer files` from `make seed` | Install git-lfs, then `make setup`. |
+| `Failed to generate package metadata` / `unable to locate the end of central directory record` for a deployment wheel | The wheel is still a Git LFS pointer. Re-run `make setup-gpu` to fetch the wheels before uv validates the lockfile. |
 | `install git-lfs first` from `make setup` | Install [git-lfs](https://git-lfs.com/) and re-run. |
 | `CUDA_HOME is unset` / flash-attn errors | GR00T environment issue; see the [Isaac-GR00T installation guide](https://github.com/NVIDIA/Isaac-GR00T/tree/n1.7-release#installation). |
 | 401/403 from Hugging Face during training | Request access to `nvidia/Cosmos-Reason2-2B` and run `hf auth login` on the training node. |
