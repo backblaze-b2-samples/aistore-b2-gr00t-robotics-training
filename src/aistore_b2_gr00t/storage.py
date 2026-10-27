@@ -263,7 +263,9 @@ def _cached_subset(bucket: Bucket, keys: Sequence[str]) -> set[str]:
     """Which of `keys` are cached, via one listing of their common prefix."""
     if not keys:
         return set()
-    return set(keys) & cached_keys(bucket, os.path.commonprefix(list(keys)))
+    # S3 keys use character prefixes, including partial filename matches.
+    prefix = os.path.commonprefix(list(keys))  # noqa: RUF071
+    return set(keys) & cached_keys(bucket, prefix)
 
 
 def prefetch(bucket: Bucket, keys: Sequence[str], num_workers: int = 16) -> None:
