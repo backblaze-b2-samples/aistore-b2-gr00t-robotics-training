@@ -114,6 +114,7 @@ make verify PREFIX=checkpoints/<run>/checkpoint-200 ARGS="--direct"   # B2's dur
 ```
 
 Verification streams every listed object, checks its size and SHA-256, then rereads the record to detect a concurrent republish.
+It prints its file count only after completion; large publications can take several minutes without intermediate output.
 
 ### Scope
 
