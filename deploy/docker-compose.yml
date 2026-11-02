@@ -20,7 +20,7 @@ services:
   proxy:
     # Image pinned by digest; bump both services and the `aistore` SDK pin in pyproject.toml
     # together. Inlined (not a YAML anchor) so Dependabot can update it.
-    image: ${AIS_IMAGE:-aistorage/cluster-minimal:v5.1@sha256:d442df5e84831c0dbb6910e00a2dfa78a6bf8265e17805659f6b5e1aa5218e6f}
+    image: ${AIS_IMAGE:-aistorage/cluster-minimal:v5.1@sha256:fd3d196a619f8865aa5067b7a76d8e99fd2debf688284795ae6461e5a3ae66f5}
     command: ["proxy", "${AIS_PORT:-51080}"]
     hostname: proxy
     ports:
@@ -43,7 +43,7 @@ services:
       start_period: 15s
 
   target:
-    image: ${AIS_IMAGE:-aistorage/cluster-minimal:v5.1@sha256:d442df5e84831c0dbb6910e00a2dfa78a6bf8265e17805659f6b5e1aa5218e6f}
+    image: ${AIS_IMAGE:-aistorage/cluster-minimal:v5.1@sha256:fd3d196a619f8865aa5067b7a76d8e99fd2debf688284795ae6461e5a3ae66f5}
     command: ["target", "${AIS_TARGET_PORT:-51081}"]
     hostname: target
     depends_on:
